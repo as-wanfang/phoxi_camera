@@ -1,4 +1,4 @@
-scanner_id: "InstalledExamples-PhoXi-example"
+scanner_id: "1711004"
 frame_id: "PhoXi3Dscanner_sensor"
 latch_tipics: true
 topic_queue_size: 1

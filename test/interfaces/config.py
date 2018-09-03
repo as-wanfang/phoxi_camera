@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 # camera ID for example "InstalledExamples-PhoXi-example" for file camera, "1711002" for real scanner
-camera_id = "InstalledExamples-PhoXi-example"
+camera_id = "PhoXi3DScan-1711004"
 
 node_name = "/phoxi_camera"
 
