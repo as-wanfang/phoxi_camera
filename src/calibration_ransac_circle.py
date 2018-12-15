@@ -10,27 +10,57 @@ p_robot = np.array([[0.3043, -0.5347, 0.1779, 1],
                [0.2899, -0.5989, 0.1742, 1]])
 p_robot = p_robot.transpose()
 
+# segment the flange, this step is very fast
+for i in range(4):
+    cloud = pcl.load('waypoint%s.ply'%(i+1))
+    # TODO: PassThrough Filter
+    passthrough = cloud.make_passthrough_filter()
+    filter_axis = 'z'
+    passthrough.set_filter_field_name (filter_axis)
+    axis_min = 320
+    axis_max = 355
+    passthrough.set_filter_limits (axis_min, axis_max)
+    cloud_filtered = passthrough.filter()
+    # TODO: Statistical outlier filter
+    outlier_filter = cloud_filtered.make_statistical_outlier_filter()
+    outlier_filter.set_mean_k(50)
+    outlier_filter.set_std_dev_mul_thresh(1.0)
+    cloud_filtered = outlier_filter.filter()
+    # TODO: Euclidean Clustering
+    white_cloud = XYZRGB_to_XYZ(cloud_filtered)
+    tree = white_cloud.make_kdtree()
+    ec = white_cloud.make_EuclideanClusterExtraction()
+    ec.set_ClusterTolerance(0.5)    # Set tolerances for distance threshold
+    ec.set_MinClusterSize(2000)
+    ec.set_MaxClusterSize(100000)   # as well as minimum and maximum cluster size (in points)
+    ec.set_SearchMethod(tree)
+    cluster_indices = ec.Extract()
+    tool_index = []
+    # select the tool0 plane has the largest number of points
+    for cluster in cluster_indices:
+        if len(cluster)>len(tool_index):
+            tool_index = cluster
+    tool0 = white_cloud.extract(tool_index)
+    pcl.save(tool0, "tool0_%s.pcd"%(i+1))
+
+# 3D Circle fittning using ransac and flange radius information
 # unit of the pointcloud is mm
 maxD = 0.3
-
+R_FLANGE = 31
 p_camera = []
 for i in range(4):
     tool0 = pcl.load('tool0_%s.pcd'%(i+1))
     points = tool0.to_array()
     max_num_inliers = 0
-    max_inliers = []
-    max_outliers = []
     for k in range(10000):
         idx = np.random.randint(points.shape[0], size=3)
-        A = points[idx[0],:]
-        B = points[idx[1],:]
-        C = points[idx[2],:]
+        A, B, C = points[idx,:]
         a = np.linalg.norm(C - B)
         b = np.linalg.norm(C - A)
         c = np.linalg.norm(B - A)
         s = (a + b + c) / 2
         R = a*b*c / 4 / np.sqrt(s * (s - a) * (s - b) * (s - c))
-        if (31-R)>1 or 31-R<0:
+        if (R_FLANGE-R)>1 or R_FLANGE-R<0:
             continue
         b1 = a*a * (b*b + c*c - a*a)
         b2 = b*b * (a*a + c*c - b*b)
@@ -77,6 +107,9 @@ t = H[:3, 3]
 
 # calculate the rpy of rotation for usage in urdf
 al, be, ga = tf.transformations.euler_from_matrix(R, 'sxyz')
+
+print("xyz= %s"%(t.getT()))
+print("rpy= %s %s %s"%(al,be,ga))
 
 # fig = plt.figure()
 # ax = fig.add_subplot(111, projection='3d')
