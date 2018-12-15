@@ -8,7 +8,6 @@ from std_msgs.msg import String
 import rosbag
 import numpy as np
 from matplotlib import pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 
 NUM_ATTEMPS = 1
 PLANNER_NAME = "RRTConnect"
@@ -21,7 +20,7 @@ robot = moveit_commander.RobotCommander()
 
 scene = moveit_commander.PlanningSceneInterface()
 
-group = moveit_commander.MoveGroupCommander("Arm")
+group = moveit_commander.MoveGroupCommander("manipulator")
 
 
 display_trajectory_publisher = rospy.Publisher(
