@@ -20,8 +20,11 @@ robot = moveit_commander.RobotCommander()
 
 scene = moveit_commander.PlanningSceneInterface()
 
-group = moveit_commander.MoveGroupCommander("manipulator")
+group = moveit_commander.MoveGroupCommander("manipulator_i5")
 
+group.set_pose_targets([[0.35705498188046264, -0.61592791298102, 0.142993429634809+0.022+0.03, -0.08591892905881739, -0.3886222774511321, 0.9151340190752171, 0.06419026584554777]])
+plan = group.plan()
+group.execute(plan)
 
 display_trajectory_publisher = rospy.Publisher(
                                       '/move_group/display_planned_path',

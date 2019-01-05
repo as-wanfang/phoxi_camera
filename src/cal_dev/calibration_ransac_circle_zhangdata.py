@@ -1,28 +1,22 @@
 import pcl, tf
-from mpl_toolkits.mplot3d import Axes3D
-import matplotlib.pyplot as plt
 import numpy as np
 from sensor_stick.pcl_helper import *
+from functools import reduce
+import time
+from utils import *
+from numpy.linalg import *
+import os
 
-# p_robot = np.array([[0.3043, -0.5347, 0.1779, 1],
-#                [0.3724, -0.5580, 0.1992, 1],
-#                [0.3724, -0.5989, 0.1742, 1],
-#                [0.2899, -0.5989, 0.1742, 1]])
+data_path = "/home/bionicdl/photoneo_data/calibration_images/data_ransac10000"
+index_list, p_camera_list, p_robot_list = read_data(data_path+"/data.txt", type="point_pair")
+# p_robot_mat = np.array(p_robot_list).transpose()
 
-# photoneo_data/20181217
-p_robot = np.array([[0.35705498188046264, -0.61592791298102, 0.15799342963480897, 1],
-                    [0.2990568677145358, -0.4899298457150618, 0.16996147198289374, 1],
-                    [0.18206887844554992, -0.5469999549854314, 0.1659302750654687, 1],
-                    [0.26694493167509775, -0.5989386340792358, 0.1862799762422314, 1]
-])
-
-p_robot[:,2] = p_robot[:,2] - 0.015
-
-p_robot = p_robot.transpose()
-
-# segment the flange, this step is very fast
-for i in range(5):
-    cloud = pcl.load('/home/bionicdl/photoneo_data/20181217/waypoint%s.ply'%(i+1))
+for index in index_list:
+    try:
+        cloud = pcl.load(data_path+'/im%s.ply'%(index[:-1]))
+    except:
+        print("Not existed pointcloud!")
+        continue
     # TODO: PassThrough Filter
     passthrough = cloud.make_passthrough_filter()
     filter_axis = 'z'
@@ -68,16 +62,23 @@ for i in range(5):
     seg.set_method_type(0)
     inliers, coefficients = seg.segment()
     flange = tool0.extract(inliers, negative=False)
-    pcl.save(flange, "tool0_%s.pcd"%(i+1))
+    if len(inliers)>13000:
+        pcl.save(flange, "/home/bionicdl/photoneo_data/calibration_images/data_ransac10000_used/tool0_%s.pcd"%(index[:-1]))
+        print("Flange saved!")
 
-# 3D Circle fittning using ransac and flange radius information
-# unit of the pointcloud is mm
+p_robot_used = []
 maxD = 0.3/1000
 R_FLANGE = 31.0/1000
 detR = 0.001 #
 p_camera = []
-for i in range(5):
-    tool0 = pcl.load('tool0_%s.pcd'%(i+1))
+for i in range(len(index_list)):
+    index = index_list[i]
+    try:
+        tool0 = pcl.load("/home/bionicdl/photoneo_data/calibration_images/data_ransac10000_used/tool0_%s.pcd"%(index[:-1]))
+        # os.system("pcl_viewer /home/bionicdl/photoneo_data/calibration_images/data_ransac10000/im%s.PCD"%(index[:-1]))
+    except:
+        continue
+    p_robot_used.append(p_robot_list[i])
     points = tool0.to_array()
     max_num_inliers = 0
     for k in range(10000):
@@ -121,54 +122,61 @@ for i in range(5):
         points_list.append([data[0], data[1], data[2], rgb_to_float([255,0,0])])
     tool0_c = pcl.PointCloud_PointXYZRGB()
     tool0_c.from_list(points_list)
-    pcl.save(tool0_c, "Tool0_c%s.pcd"%(i+1))
+    pcl.save(tool0_c, "/home/bionicdl/photoneo_data/calibration_images/data_ransac10000_used/Tool0_c%s.pcd"%(i+1))
     p_camera.append(max_P)
     max_R
     max_P
 
-p_camera_ = np.matrix(np.concatenate((np.array(p_camera).transpose()/1, np.ones([1,5])),axis=0))
-np.save("p_camera.npy",p_camera_)
-# fig = plt.figure()
-# ax = fig.add_subplot(111, projection='3d')
-# ax.scatter(points[:,0], points[:,1], points[:,2], s=0.5,  c='y', marker='.')
-# ax.scatter(max_inliers[:,0], max_inliers[:,1], max_inliers[:,2],  s=1, c='r', marker='.')
-# plt.show()
+p_robot_mat = np.array(p_robot_used).transpose()
+p_camera_mat = np.array(p_camera).transpose()
+np.save("/home/bionicdl/photoneo_data/calibration_images/data_ransac10000_used/p_robot_mat.npy",p_robot_mat)
+np.save("/home/bionicdl/photoneo_data/calibration_images/data_ransac10000_used/p_camera_mat.npy",p_camera_mat)
 
-####################################################
-# Direct matrix multiplication
-p_camera_reverse = p_camera_[:,:4].getI()
-H = np.matmul(p_robot, p_camera_reverse)
+#######################################################
+# calibration
+from calibration import get_calibrate
+import numpy as np
+import tf
+p_robot_mat = np.load("/home/bionicdl/photoneo_data/calibration_images/data_ransac10000_used/p_robot_mat.npy")
+p_camera_mat = np.load("/home/bionicdl/photoneo_data/calibration_images/data_ransac10000_used/p_camera_mat.npy")
+
+calibrate = get_calibrate(4)
+H = calibrate(p_robot_mat, p_camera_mat)
 R = H[:3,:3]
-t = H[:3, 3]
-# calculate the rpy of rotation for usage in urdf
+t = H[:3,3]
 al, be, ga = tf.transformations.euler_from_matrix(R, 'sxyz')
 print("xyz= %s"%(t.getT()))
 print("rpy= %s %s %s"%(al,be,ga))
 
-#########################################################
-# calculate R using SVD
-p_robot_centroid = np.mean(p_robot[:3,:],axis=1).reshape(3,1)
-p_camera_centroid = np.mean(p_camera_[:3,:4],axis=1).reshape(3,1)
+###################################################
+# Ransac
+def error_test(H):
+    error_matrix = p_robot_mat - np.matmul(H_i[:3,:3],p_camera_mat) - np.tile(H_i[:3,3],[1,27])
+    error = np.sum((np.asarray(error_matrix))**2)/p_camera_mat.shape[0]/(p_camera_mat.shape[1]-4)
+    return error
 
-p_robot_demean = p_robot[:3,:] - np.tile(p_robot_centroid,[1,4])
-p_camera_demean = p_camera_[:3,:4] - np.tile(p_camera_centroid,[1,4])
+min_error = 10010
+for i in range(1):
+    idx = np.random.choice(p_robot_mat.shape[1], 27,0)
+    p_robot_mat_i = p_robot_mat[:,idx]
+    p_camera_mat_i = p_camera_mat[:,idx]
+    H_i = calibrate(p_robot_mat_i, p_camera_mat_i)
+    error_matrix = p_robot_mat - np.matmul(H_i[:3,:3],p_camera_mat) - np.tile(H_i[:3,3],[1,27])
+    error = np.mean( (np.sum((np.asarray(error_matrix))**2,axis=0))**(0.5) )
+    # print("Id:{} Iteration:{}  Error:{} mm".format(idx, i, error*1000))
+    if error < min_error:
+        min_error = error
+        H = H_i
 
-r = np.matrix(np.zeros([3,3]))
-for i in range(4):
-    r += np.matmul(p_camera_demean[:,i].reshape(3,1),p_robot_demean[:,i].reshape(1,3))
+# Ransac 4 points: min_error=0.520 with 1000 iterations
+# All points: min_error = 0.517
 
-
-u, s, vt = np.linalg.svd(r)
-R = np.matmul(vt.transpose(), u.transpose())
-
-t = p_robot_centroid - np.matmul(R, p_camera_centroid)
-
-al, be, ga = tf.transformations.euler_from_matrix(R, 'sxyz')
-
-print("xyz= %s"%(t.getT()))
-print("rpy= %s %s %s"%(al,be,ga))
-
-H = np.zeros([4,4])
-H[:3,:3]  = R
-H[:3, 3] = t.transpose()
-H[3,3] = 1
+p_robot_mat_i = p_robot_mat
+p_camera_mat_i = p_camera_mat
+for i in range(20):
+    H_i = calibrate(p_robot_mat_i, p_camera_mat_i)
+    error_matrix = p_robot_mat_i - np.matmul(H_i[:3,:3],p_camera_mat_i) - np.tile(H_i[:3,3],[1, p_camera_mat_i.shape[1]])
+    error = (np.sum((np.asarray(error_matrix))**2,axis=0))**(0.5)
+    print("Iteration:{}  Error:{} mm".format(i, np.mean(error*1000)))
+    p_robot_mat_i = np.delete(p_robot_mat_i, np.argmax(error),1)
+    p_camera_mat_i = np.delete(p_camera_mat_i, np.argmax(error),1)
