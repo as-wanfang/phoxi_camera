@@ -6,35 +6,31 @@ import moveit_msgs.msg
 import moveit_msgs.srv
 import geometry_msgs.msg
 from std_msgs.msg import String
-import rosbag
 import numpy as np
-from matplotlib import pyplot as plt
 
-NUM_ATTEMPS = 1
-PLANNER_NAME = "RRTConnect"
-
-moveit_commander.roscpp_initialize(sys.argv)
-rospy.init_node('move_group_python_interface_tutorial',
-                  anonymous=True)
-
-robot = moveit_commander.RobotCommander()
-
-scene = moveit_commander.PlanningSceneInterface()
-
-group = moveit_commander.MoveGroupCommander("manipulator_i5")
+# NUM_ATTEMPS = 1
+# PLANNER_NAME = "RRTConnect"
+# moveit_commander.roscpp_initialize(sys.argv)
+# rospy.init_node('move_group_python_interface_tutorial', anonymous=True)
+# robot = moveit_commander.RobotCommander()
+# scene = moveit_commander.PlanningSceneInterface()
+# group = moveit_commander.MoveGroupCommander("manipulator_i5")
 
 # photoneo_data/20181217
 p1=[0.35705498188046264, -0.61592791298102, 0.142993429634809+0.022, -0.08591892905881739, -0.3886222774511321, 0.9151340190752171, 0.06419026584554777]
-p5=[0.27704067625331485, -0.573055166920657, 0.26205388882758757-0.015+0.022, -0.08580920098798522, -0.3893105864494028, 0.9148593368686363, 0.06408152657751885]
-group.set_pose_targets([p5])
-plan = group.plan()
-group.execute(plan)
+p2=[0.2990568677145358, -0.4899298457150618, 0.16996147198289374+0.022, -0.08595957781684653, -0.3886096368514568, 0.9151259847286154, 0.06432676893961795]
+p3=[0.18206887844554992, -0.5469999549854314, 0.1659302750654687+0.022, -0.08646242706426885, -0.3889325826192631, 0.914938690401202, 0.06436526773190819]
+p4=[0.26694493167509775, -0.5989386340792358, 0.1862799762422314+0.022, -0.08586592309673075, -0.3885202949278296, 0.9151261079205532, 0.06498638535970076]
+p5=[0.27704067625331485, -0.573055166920657, 0.26205388882758757+0.022, -0.08580920098798522, -0.3893105864494028, 0.9148593368686363, 0.06408152657751885]
+# group.set_pose_targets([p5])
+# plan = group.plan()
+# group.execute(plan)
 
 # Accuracy test with ICP resgistration
+# target = H * source, base_p = H * cam_p
 from open3d import *
 import numpy as np
 import copy, tf
-H = np.load("H.npy")
 def draw_registration_result(source, target, transformation):
     source_temp = copy.deepcopy(source)
     target_temp = copy.deepcopy(target)
@@ -43,38 +39,59 @@ def draw_registration_result(source, target, transformation):
     source_temp.transform(transformation)
     draw_geometries([source_temp, target_temp])
 
-source = read_point_cloud("flange_aubo-i5_m.pcd")
-target = read_point_cloud("tool0_5.pcd")
-threshold = 0.02
-
+target = read_point_cloud("aubo-i5-EndFlange_cropped_m.pcd")
+source = read_point_cloud("tool0_5.pcd")
 H_offset = np.matrix([[-1,0,0,0],[0,1,0,0],[0,0,-1,-0.006],[0,0,0,1]])
 H_base_tool = tf.transformations.quaternion_matrix([-0.08580920098798522, -0.3893105864494028, 0.9148593368686363, 0.06408152657751885])
-H_base_tool[:3,3] = np.array([0.27704067625331485, -0.573055166920657, 0.26205388882758757 - 0.015])
-
+H_base_tool[:3,3] = np.array([0.27704067625331485, -0.573055166920657, 0.26205388882758757])
 s = copy.deepcopy(source)
 t = copy.deepcopy(target)
-s.transform(H_offset)
-s.transform(H_base_tool)
+t.transform(H_offset)
+t.transform(H_base_tool)
 
-draw_registration_result(t, s, H)
+H = np.load("H.npy")
+H1 = np.load("/home/bionicdl/photoneo_data/calibration_images/data_ransac10000_valid/H1.npy")
+H2 = np.load("/home/bionicdl/photoneo_data/calibration_images/data_ransac10000_valid/H_ransac.npy")
+H3 = np.load("/home/bionicdl/photoneo_data/calibration_images/data_ransac10000_valid/H_s.npy")
 
-evaluation = evaluate_registration(s, t, threshold, H)
+# show transform from cam_p to world_p
+# draw_registration_result(s, t, H)
+
+# quantify calibration error
+sTt = copy.deepcopy(s)
+sTt.transform(H1)
+HI = np.matrix([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]])
+reg_p2p = registration_icp(sTt, t, 0.0003, HI, TransformationEstimationPointToPoint(),ICPConvergenceCriteria(max_iteration = 2000))
+R = reg_p2p.transformation[:3,:3]
+T = reg_p2p.transformation[:3,3]
+al, be, ga = tf.transformations.euler_from_matrix(R, 'sxyz')
+print("xyz= [%2.2f, %2.2f, %2.2f]"%(T[0]*1000,T[1]*1000,T[2]*1000))
+print("rpy= [%2.5f, %2.5f, %2.5f]"%(al,be,ga))
+# results
+# H:        xyz= [0.00040029 0.00081483 0.00168168] rpy= 0.00333746699586 -0.00112373840469 -0.000103912228989
+# H1:       xyz= [0.00054628 0.00065536 0.00126683] rpy= 0.00235151356392 -0.000893351140693 -0.000616103236213
+# H_ransac: xyz= [-0.00013903  0.00012276  0.00059244] rpy= 0.000806734526165 0.000140151745263 0.000170308052559
+
+# quantify icp
+threshold = 0.0003
+evaluation = evaluate_registration(sTt, t, threshold, reg_p2p.transformation)
 print(evaluation)
+draw_registration_result(sTt, t, reg_p2p.transformation)
+# results
+# H1: RegistrationResult with fitness = 0.998582, inlier_rmse = 0.000396, and correspondence_set size of 23244
+# H_ransac: RegistrationResult with fitness = 0.998754, inlier_rmse = 0.000352, and correspondence_set size of 23248
 
-reg_p2p = registration_icp(s, t, threshold, H,
-            TransformationEstimationPointToPoint())
+estimate_normals(s, search_param = KDTreeSearchParamHybrid(radius = 0.01, max_nn = 30))
+estimate_normals(t, search_param = KDTreeSearchParamHybrid(radius = 0.01, max_nn = 30))
+reg_p2l = registration_icp(s, t, threshold, HI, TransformationEstimationPointToPlane())
+R = reg_p2l.transformation[:3,:3]
+T = reg_p2l.transformation[:3,3]
+al, be, ga = tf.transformations.euler_from_matrix(R, 'sxyz')
+print("xyz= %s"%t)
+print("rpy= %s %s %s"%(al,be,ga))
+evaluation = evaluate_registration(s, t, threshold, reg_p2l.transformation)
 
-draw_registration_result(source, target, reg_p2p.transformation)
-
-print("Apply point-to-plane ICP")
-reg_p2l = registration_icp(source, target, threshold, trans_init,
-            TransformationEstimationPointToPlane())
-print(reg_p2l)
-print("Transformation is:")
-print(reg_p2l.transformation)
-print("")
-draw_registration_result(source, target, reg_p2l.transformation)
-
+##############################################################################################################
 # Test calibration accuracy with nail
 for i in [4]:
     cloud = pcl.load_XYZRGB('destination.ply')

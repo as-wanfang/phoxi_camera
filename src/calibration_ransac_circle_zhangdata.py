@@ -175,68 +175,68 @@ p_camera_mat = np.load("/home/bionicdl/photoneo_data/calibration_images/data_ran
 calibrate = get_calibrate(4)
 #######################################################
 # method 1: calibration using all data points
-# H = calibrate(p_robot_mat, p_camera_mat)
-# R = H[:3,:3]
-# T = H[:3,3]
-# al, be, ga = tf.transformations.euler_from_matrix(R, 'sxyz')
-# print("xyz= %s"%(T.getT()))
-# print("rpy= %s %s %s"%(al,be,ga))
-# np.save('/home/bionicdl/photoneo_data/calibration_images/data_ransac10000_valid/H.npy',H)
-# error_matrix = p_robot_mat - np.matmul(H[:3,:3],p_camera_mat) - np.tile(H[:3,3],[1,p_camera_mat.shape[1]])
-# error = np.mean( (np.sum((np.asarray(error_matrix))**2,axis=0))**(0.5) )
-# draw_registration_result(s, t, H)
-# ###################################################
-# # method 2: least error
-# min_error = 10010
-# for i in range(1000):
-#     idx = np.random.choice(p_robot_mat.shape[1], 4,0)
-#     p_robot_mat_i = p_robot_mat[:,idx]
-#     p_camera_mat_i = p_camera_mat[:,idx]
-#     H_i = calibrate(p_robot_mat_i, p_camera_mat_i)
-#     error_matrix = p_robot_mat - np.matmul(H_i[:3,:3],p_camera_mat) - np.tile(H_i[:3,3],[1,p_camera_mat.shape[1]])
-#     error = np.mean( (np.sum((np.asarray(error_matrix))**2,axis=0))**(0.5) )
-#     # error =  np.mean( (np.sum((np.asarray(error_matrix))**2,axis=0)) ) # not good
-#     # print("Id:{} Iteration:{}  Error:{} mm".format(idx, i, error*1000))
-#     if error < min_error:
-#         min_error = error
-#         H1 = H_i
-#
-# np.save('/home/bionicdl/photoneo_data/calibration_images/data_ransac10000_valid/H1.npy',H1)
-# print("Id:{} Iteration:{}  min Error:{} mm".format(idx, i, min_error*1000))
-# evaluate_calibration(s,t,H1)
-# draw_registration_result(s, t, H1)
-# #######################################################
-# # method 3: Ransac
-# max_num = 0
-# min_error = 100
-# e_threshold = 0.0004
-# for i in range(1000):
-#     idx = np.random.choice(p_robot_mat.shape[1], 4,0)
-#     p_robot_mat_i = p_robot_mat[:,idx]
-#     p_camera_mat_i = p_camera_mat[:,idx]
-#     H_i = calibrate(p_robot_mat_i, p_camera_mat_i)
-#     error_matrix = p_robot_mat - np.matmul(H_i[:3,:3],p_camera_mat) - np.tile(H_i[:3,3],[1,p_camera_mat.shape[1]])
-#     error = (np.sum((np.asarray(error_matrix))**2,axis=0))**(0.5)
-#     num = sum(error<e_threshold)
-#     # print("Id:{} Iteration:{}  Error:{} mm".format(idx, i, error*1000))
-#     if num > max_num:
-#         selected = error<e_threshold
-#         max_num = num
-#         H_ransac = H_i
-#         min_error = np.mean(error[error<e_threshold])
-#
-# np.save('/home/bionicdl/photoneo_data/calibration_images/data_ransac10000_valid/H_ransac.npy',H_ransac)
-# print("Id:{} Iteration:{}  max_num:{} mean_error:{} mm".format(idx, i, max_num, min_error*1000))
-#
-# p_robot_mat_s = p_robot_mat[:,selected]
-# p_camera_mat_s = p_camera_mat[:,selected]
-# H_s = calibrate(p_robot_mat_s, p_camera_mat_s)
-# np.save('/home/bionicdl/photoneo_data/calibration_images/data_ransac10000_valid/H_s.npy',H_s)
-# error_matrix = p_robot_mat_s - np.matmul(H_s[:3,:3],p_camera_mat_s) - np.tile(H_s[:3,3],[1,p_camera_mat_s.shape[1]])
-# error = np.mean( (np.sum((np.asarray(error_matrix))**2,axis=0))**(0.5) )
-#
-# evaluate_calibration(s,t,H_ransac)
-# evaluate_calibration(s,t,H_s)
+H = calibrate(p_robot_mat, p_camera_mat)
+R = H[:3,:3]
+T = H[:3,3]
+al, be, ga = tf.transformations.euler_from_matrix(R, 'sxyz')
+print("xyz= %s"%(T.getT()))
+print("rpy= %s %s %s"%(al,be,ga))
+np.save('/home/bionicdl/photoneo_data/calibration_images/data_ransac10000_valid/H.npy',H)
+error_matrix = p_robot_mat - np.matmul(H[:3,:3],p_camera_mat) - np.tile(H[:3,3],[1,p_camera_mat.shape[1]])
+error = np.mean( (np.sum((np.asarray(error_matrix))**2,axis=0))**(0.5) )
+draw_registration_result(s, t, H)
+###################################################
+# method 2: least error
+min_error = 10010
+for i in range(1000):
+    idx = np.random.choice(p_robot_mat.shape[1], 4,0)
+    p_robot_mat_i = p_robot_mat[:,idx]
+    p_camera_mat_i = p_camera_mat[:,idx]
+    H_i = calibrate(p_robot_mat_i, p_camera_mat_i)
+    error_matrix = p_robot_mat - np.matmul(H_i[:3,:3],p_camera_mat) - np.tile(H_i[:3,3],[1,p_camera_mat.shape[1]])
+    error = np.mean( (np.sum((np.asarray(error_matrix))**2,axis=0))**(0.5) )
+    # error =  np.mean( (np.sum((np.asarray(error_matrix))**2,axis=0)) ) # not good
+    # print("Id:{} Iteration:{}  Error:{} mm".format(idx, i, error*1000))
+    if error < min_error:
+        min_error = error
+        H1 = H_i
+
+np.save('/home/bionicdl/photoneo_data/calibration_images/data_ransac10000_valid/H1.npy',H1)
+print("Id:{} Iteration:{}  min Error:{} mm".format(idx, i, min_error*1000))
+evaluate_calibration(s,t,H1)
+draw_registration_result(s, t, H1)
+#######################################################
+# method 3: Ransac
+max_num = 0
+min_error = 100
+e_threshold = 0.0004
+for i in range(1000):
+    idx = np.random.choice(p_robot_mat.shape[1], 4,0)
+    p_robot_mat_i = p_robot_mat[:,idx]
+    p_camera_mat_i = p_camera_mat[:,idx]
+    H_i = calibrate(p_robot_mat_i, p_camera_mat_i)
+    error_matrix = p_robot_mat - np.matmul(H_i[:3,:3],p_camera_mat) - np.tile(H_i[:3,3],[1,p_camera_mat.shape[1]])
+    error = (np.sum((np.asarray(error_matrix))**2,axis=0))**(0.5)
+    num = sum(error<e_threshold)
+    # print("Id:{} Iteration:{}  Error:{} mm".format(idx, i, error*1000))
+    if num > max_num:
+        selected = error<e_threshold
+        max_num = num
+        H_ransac = H_i
+        min_error = np.mean(error[error<e_threshold])
+
+np.save('/home/bionicdl/photoneo_data/calibration_images/data_ransac10000_valid/H_ransac.npy',H_ransac)
+print("Id:{} Iteration:{}  max_num:{} mean_error:{} mm".format(idx, i, max_num, min_error*1000))
+
+p_robot_mat_s = p_robot_mat[:,selected]
+p_camera_mat_s = p_camera_mat[:,selected]
+H_s = calibrate(p_robot_mat_s, p_camera_mat_s)
+np.save('/home/bionicdl/photoneo_data/calibration_images/data_ransac10000_valid/H_s.npy',H_s)
+error_matrix = p_robot_mat_s - np.matmul(H_s[:3,:3],p_camera_mat_s) - np.tile(H_s[:3,3],[1,p_camera_mat_s.shape[1]])
+error = np.mean( (np.sum((np.asarray(error_matrix))**2,axis=0))**(0.5) )
+
+evaluate_calibration(s,t,H_ransac)
+evaluate_calibration(s,t,H_s)
 #########################################################
 # method 4: interative adding new points
 error = []
